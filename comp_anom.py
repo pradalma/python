@@ -1,4 +1,3 @@
-# %% [markdown]
 # Composite analysis is a commonly used statistical technique to determine some of the basic structural characteristics of a meteorological or climatological phenomenon that are difficult to observe in totality (such as a hurricane, a squall line thunderstorm, or a cold front), or phenomenon which occur over time (e.g., the weather/climate over a given geographic area). Composite Analysis is one of those very recurrent and celebrated methods of climate science, which could be quite useful for exploring the large scale impacts of teleconnections from modes of atmospheric variability such as El Nino.
 # 
 # There are a number of steps necessary to form composites of any given phenomenon (Lee, 2011).
@@ -8,10 +7,8 @@
 # Finally, statistical significance is determined by using a two tailed student-t test, and for the cases evaluated, the confidence interval is generally set at 0.95.
 # In this notebook, we will carry out a primary composite study of the El Niño influence on the precipitation over the Southern Africa. This notebook extended the idea from Tristan Hauser, so credit should also go to him.
 
-# %% [markdown]
 # Author Marie-Aude Pradal
 
-# %%
 import numpy as np               
 import pandas as pd              
 import xarray as xr
@@ -27,17 +24,13 @@ from helpers import *
 %matplotlib inline                
 _ = plt.xkcd()
 
-# %% [markdown]
 # 1. Identify El Niño events
-# 
 # El Niño/Southern Oscillation (ENSO) is an irregularly periodic variation in winds and sea surface temperatures over the tropical eastern Pacific Ocean, which is the most important coupled ocean-atmosphere phenomenon to cause global climate variability on interannual time scales. The warming phase of the sea temperature is known as El Niño and the cooling phase as La Niña. The extremes of this climate pattern's oscillations cause extreme weather (such as floods and droughts) in many regions of the world. Developing countries dependent upon agriculture and fishing, particularly those bordering the Pacific Ocean, are the most affected.
-# 
 # There are many separate indices available to describe ENSO events. Here Multivariate ENSO Index (MEI) was used. In the interest of determining a full affect of both the atmospheric and oceanic aspects of ENSO, the MEI has been utilized as equatorial Pacific variables of both the atmosphere and ocean go into the formation of this index (Wolter, 1998). As the MEI indices are scaled by variability, we take any MEI value>1 to be an El Niño event.
 
-# %%
+# change font
 plt.rcParams['font.family'] = 'Arial'
 
-# %%
 # Define the column names (Year + 12 months)
 columns = ['Year', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -70,10 +63,8 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-# %% [markdown]
 # fill with color the events corresponding to nino index GT 1
 
-# %%
 # Step 4: Plot the data with highlighting
 plt.figure(figsize=(15, 5))
 plt.plot(df_long['Date'], df_long['ENSO_Index'], label='ENSO Index', color='black')
@@ -92,10 +83,7 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-# %% [markdown]
 # save the filtered values into a new variable and in a netcdf file
-
-# %%
 # Step 1: Load the data
 columns = ['Year', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -137,10 +125,7 @@ da = xr.DataArray(filtered_data['ENSO'].values,
 #ds = da.to_dataset()
 #ds.to_netcdf('/Users/marie-audepradal/Documents/filtered_enso_indices.nc')
 
-# %% [markdown]
 # plot extreme values: nino index <=1.5 or >1.5
-
-# %%
 # Conditions for highlighting la Nina extreme events
 extreme_mask_nino = (df_long['ENSO_Index'] > 2) #| (df_long['ENSO_Index'] < -1.5)
 
@@ -189,10 +174,7 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-# %% [markdown]
 # save extreme values as new variable in netcdf format
-
-# %%
 # Select extreme values El Nino
 extreme_nino_df = df_long[extreme_mask_nino].copy()
 extreme_nino_df.set_index('Date', inplace=True)
@@ -218,20 +200,15 @@ ds_neutral = xr.Dataset(
 # Save to NetCDF
 ds_neutral.to_netcdf("/Users/marie-audepradal/Documents/neutral.nc")
 
-# %% [markdown]
 # read ERA5 data from a netcdf file
-
-# %%
 file_path = "/Users/marie-audepradal/Documents/ERA5SST.nc"
 era5_ds = xr.open_dataset(file_path)
 
-# %%
 file_path=  "/Users/marie-audepradal/Documents/nino.nc"
 nino15_ds = xr.open_dataset(file_path)
 file_path=  "/Users/marie-audepradal/Documents/neutral.nc"
 neutral_ds = xr.open_dataset(file_path)
 
-# %%
 # Extract time values from both datasets
 era5_times = era5_ds['valid_time']
 nino15_times = nino15_ds['time']
@@ -243,13 +220,10 @@ matching_neutral = np.intersect1d(era5_times.values, neutral_times.values)
 matching_nino15_data = era5_ds.sel(valid_time=matching_nino)
 matching_neutral_data = era5_ds.sel(valid_time=matching_neutral)
 
-
-# %%
+#print on screen
 matching_neutral_data
 
-# %%
 # Compute the average over time of the matched nina data
-
 mean_sstKn = matching_neutral_data['sst'].mean(dim='valid_time')
 mean_sstn = mean_sstKn - 273.15
 # Plot the 2D map
@@ -262,9 +236,7 @@ plt.ylabel('Latitude')
 plt.tight_layout()
 plt.show()
 
-# %%
 # Compute the average over time of the matched nino extreme events
-
 mean_sstKo = matching_nino15_data['sst'].mean(dim='valid_time')
 mean_ssto = mean_sstKo.sel(latitude=slice(5, -5), longitude=slice(210, 270)) - 273.15
 mean_sstKn = matching_neutral_data['sst'].mean(dim='valid_time')
@@ -298,9 +270,6 @@ plt.tight_layout()
 plt.show()
 
 
-
-# %%
-
 # Load NetCDF data
 ds_ERA5L = xr.open_dataset("/Users/marie-audepradal/Documents/1970-2024_tpe_ERA5Land_monthly.nc")  # Replace with your file path
 
@@ -331,7 +300,7 @@ print(temp_clim)
 print(tp_clim)
 
 
-# %%
+######
 import xarray as xr
 import numpy as np
 import matplotlib.pyplot as plt
@@ -384,7 +353,7 @@ print(f"\nSubset t2m data saved to: {output_path}")
 print(ds_t2_sel)
 
 
-# %%
+# ##########
 import xarray as xr
 import numpy as np
 import matplotlib.pyplot as plt
