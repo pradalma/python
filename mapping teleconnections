@@ -1,0 +1,1089 @@
+teleconnection mapping script: 
+https://chatgpt.com/share/684dc43d-8bd8-800c-a97f-1464910168b2
+
+Chat history
+
+You said:
+what does this do: import numpy as np
+import pandas as pd
+import xarray as xr
+import matplotlib.pyplot as plt
+import scipy.signal as signal
+import rasterio
+import scipy.stats as stats
+from scipy.stats import hypergeom
+from scipy.interpolate import RegularGridInterpolator
+from matplotlib.colors import LinearSegmentedColormap
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+from matplotlib.colors import ListedColormap
+import matplotlib.colors as mcolors
+from tqdm import tqdm
+import geopandas as gpd
+import pickle
+import os
+from scipy import signal
+>>>>>>>
+The code you've posted is a set of Python import statements, which load various libraries used for scientific computing, geospatial analysis, statistical modeling, and data visualization. Here's a breakdown of what each one does:
+
+Core Scientific Libraries
+import numpy as np  # Numerical operations, especially on arrays and matrices
+import pandas as pd  # Data manipulation and analysis, particularly with tables (DataFrames)
+import xarray as xr  # Handling multi-dimensional labeled datasets (NetCDF, climate data)
+Plotting and Visualization
+import matplotlib.pyplot as plt  # Core plotting library
+from matplotlib.colors import LinearSegmentedColormap  # Custom colormaps
+from matplotlib.colors import ListedColormap  # Another colormap customization
+import matplotlib.colors as mcolors  # Colormap utilities
+Geospatial and Mapping
+import cartopy.crs as ccrs  # Coordinate Reference Systems for maps
+import cartopy.feature as cfeature  # Add geographic features (borders, rivers, etc.)
+import geopandas as gpd  # Spatial data manipulation (shapefiles, GeoDataFrames)
+import rasterio  # Read and write geospatial raster data (e.g., GeoTIFFs)
+Statistics and Signal Processing
+import scipy.stats as stats  # Statistical functions (normal distributions, t-tests, etc.)
+from scipy.stats import hypergeom  # Hypergeometric distribution
+from scipy import signal  # Signal processing (filtering, FFT, etc.)
+import scipy.signal as signal  # Duplicate of above; redundant
+Note: The last two lines are redundant: both import scipy.signal. Only one is needed.
+Data Interpolation and Analysis Tools
+from scipy.interpolate import RegularGridInterpolator  # Interpolate data on regular grids
+Progress Monitoring
+from tqdm import tqdm  # Show progress bars in loops
+File I/O
+import pickle  # Save and load Python objects
+import os  # File system operations (path handling, directory creation, etc.)
+Summary
+This collection of imports is typical for a geospatial climate data analysis workflow, especially involving:
+
+ERA5 or similar NetCDF climate datasets (xarray)
+Map plotting (cartopy, matplotlib)
+Raster data (like satellite or reanalysis grids) via rasterio
+Statistical analysis (scipy.stats, hypergeom)
+Progress tracking during heavy computation (tqdm)
+Let me know if you'd like to clean this up (e.g., remove redundancies) or see example usage of any of these libraries.
+------------ next section
+You said:
+countries = ['Ethiopia','Mexico', 'Indonesia', 'Brazil', 'Thailand', 'South Africa', 'India', 'Colombia', 'Peru', 'Philippines', 'Egypt', 'Kenya', 'Chile']
+>>>>>>>>>>>>>
+You've created a Python list named countries containing the names of 13 countries:
+
+countries = ['Ethiopia', 'Mexico', 'Indonesia', 'Brazil', 'Thailand',
+             'South Africa', 'India', 'Colombia', 'Peru',
+             'Philippines', 'Egypt', 'Kenya', 'Chile']
+This list can be used in a variety of contexts, such as:
+
+Filtering geospatial datasets (e.g., selecting countries from a shapefile using GeoPandas).
+Looping through countries to compute or visualize climate anomalies, statistics, etc.
+Batch processing climate data (e.g., ERA5) country-by-country.
+Generating plots or tables per country.
+If you're using a shapefile with country geometries, you'd typically do something like:
+
+gdf = gpd.read_file("path_to_shapefile.shp")
+selected_gdf = gdf[gdf['NAME'].isin(countries)]
+Let me know how you're planning to use the list—e.g., for plotting, extracting data, or statistical comparisons—so I can help tailor the code or advice.
+------------ next section
+You said:
+def label_la_nina_sequences(df):
+    """
+    Labels La Nina sequences where the maximum sequence number is greater than 5.
+    
+    Parameters:
+    df (pandas.DataFrame): DataFrame containing La_Nina_Seq column
+    
+    Returns:
+    pandas.DataFrame: Original data with additional label column for significant sequences
+    """
+    # Create a copy of the dataframe
+    df_copy = df.copy()
+    
+    # Initialize the label column
+    df_copy['sig_elnino'] = 0
+    df_copy['sig_lanina'] = 0
+    
+    # Function to find max in a sequence
+    def get_sequence_max(start_idx, seq_in):
+        sequence = []
+        idx = start_idx
+        while idx < len(df_copy) and df_copy[seq_in].iloc[idx] != 0:
+            sequence.append(df_copy[seq_in].iloc[idx])
+            idx += 1
+        return max(sequence) if sequence else 0
+
+    # Iterate through the dataframe
+    i = 0
+    seq = 'La_Nina_Seq'
+    while i < len(df_copy):
+        if df_copy[seq].iloc[i] == 1:  # Start of a sequence
+            max_in_sequence = get_sequence_max(i, seq)
+            if max_in_sequence > 5:
+                # Label all numbers in this sequence
+                j = i
+                while j < len(df_copy) and df_copy[seq].iloc[j] != 0:
+                    df_copy.loc[df_copy.index[j], 'sig_lanina'] = 1
+                    j += 1
+            # Skip to end of current sequence
+            while i < len(df_copy) and df_copy[seq].iloc[i] != 0:
+                i += 1
+        else:
+            i += 1
+
+     # Iterate through the dataframe
+    i = 0
+    seq = 'El_Nino_Seq'
+    while i < len(df_copy):
+        if df_copy[seq].iloc[i] == 1:  # Start of a sequence
+            max_in_sequence = get_sequence_max(i, seq)
+            if max_in_sequence > 5:
+                # Label all numbers in this sequence
+                j = i
+                while j < len(df_copy) and df_copy[seq].iloc[j] != 0:
+                    df_copy.loc[df_copy.index[j], 'sig_elnino'] = 1
+                    j += 1
+            # Skip to end of current sequence
+            while i < len(df_copy) and df_copy[seq].iloc[i] != 0:
+                i += 1
+        else:
+            i += 1
+    
+    return df_copy
+
+
+def calculate_terciles(data):
+    
+    # Compute climatological terciles for each month
+    tercile_bounds = data.groupby("month")["values"].quantile([0.33, 0.67]).unstack()
+    tercile_bounds.columns = ['lower_33', 'upper_67']
+
+    # Merge tercile bounds with full dataset
+    data = data.merge(tercile_bounds, on="month", how="left")
+
+    # Assign tercile categories
+    conditions = [
+        data["values"] < data["lower_33"],  # Below-normal (-1)
+        (data["values"] >= data["lower_33"]) & (data["values"] <= data["upper_67"]),  # Near-normal (0)
+        data["values"] > data["upper_67"]   # Above-normal (1)
+    ]
+    choices = [-1, 0, 1]
+    data["tercile"] = np.select(conditions, choices)
+
+    return data
+
+def hypergeometric_significance(n, b, r, x):
+    """
+    Computes the statistical significance of above- or below-normal signals using the hypergeometric test.
+
+    Parameters:
+    - n: Total number of months with sufficient data
+    - b: Total number of months classified as above- or below-normal
+    - r: Number of El Niño or La Niña months (sample size)
+    - x: Observed number of above- or below-normal months in ENSO years
+
+    Returns:
+    - p_value: Probability of selecting x or more extreme months by random chance
+    """
+    # Compute right-tail probability (1 - CDF up to x-1)
+    p_value = stats.hypergeom.sf(x-1, n, b, r)
+    return p_value
+>>>>>>>>>>>>>>
+Your code defines three functions that are highly relevant to climate data analysis in the context of ENSO (El Niño–Southern Oscillation) impacts. Here's a breakdown of what each function does and how they fit together:
+
+1. label_la_nina_sequences(df)
+Purpose:
+
+Identifies significant La Niña and El Niño sequences in a time series (e.g., monthly ENSO classifications), labeling sequences longer than 5 months.
+
+Expected Input:
+
+A pandas.DataFrame with at least two columns:
+'La_Nina_Seq': sequence values where consecutive months in La Niña are labeled 1, 2, 3, ...
+'El_Nino_Seq': same idea but for El Niño.
+Output:
+
+Adds two binary columns:
+'sig_lanina': 1 if part of a long La Niña event (>5 months), else 0.
+'sig_elnino': 1 if part of a long El Niño event (>5 months), else 0.
+Example Use Case:
+
+Marking long ENSO events for later filtering when analyzing climate impacts.
+
+2. calculate_terciles(data)
+Purpose:
+
+Classifies climate variable values (e.g., temperature, precipitation) into terciles (below-, near-, and above-normal) based on the monthly climatological distribution.
+
+Expected Input:
+
+A DataFrame with at least:
+
+values: climate variable
+month: month of the observation (1–12)
+Output:
+
+Adds a tercile column:
+
+-1: below-normal
+0: near-normal
+1: above-normal
+Use Case:
+
+This is often used to discretize continuous climate variables for event-based analysis (e.g., check if El Niño years have a statistically significant increase in +1 tercile precipitation).
+
+3. hypergeometric_significance(n, b, r, x)
+Purpose:
+
+Performs a hypergeometric test to assess whether the occurrence of extreme climate events (e.g., high rainfall) during ENSO events is statistically significant.
+
+Parameters:
+
+n: total months (e.g., all months in the baseline climatology)
+b: months with above-normal (or below-normal) values
+r: number of ENSO (El Niño or La Niña) months
+x: number of above-normal (or below-normal) values during ENSO months
+Output:
+
+p_value: probability of observing x or more extreme months under a hypergeometric distribution (right-tail test)
+Use Case:
+
+Test if observed anomalies during ENSO events could have occurred by random chance — a common method in climate impact studies.
+
+Summary Workflow
+These functions together are designed for a pipeline like:
+
+Label significant ENSO periods in your ENSO index dataframe.
+Classify climate variable anomalies into terciles using climatological monthly distributions.
+Use the hypergeometric test to check whether ENSO years are significantly associated with above/below-normal anomalies.
+Let me know if you’d like to see example usage or code that integrates these steps on a climate dataset.
+
+------------ next section
+what is the threshold for el nino
+>>>>>>>>>>>>
+The threshold for El Niño depends on which ENSO index you're using, but the most commonly used metric is the Oceanic Niño Index (ONI). Here's a breakdown of the standard thresholds:
+
+🔹 ONI (Oceanic Niño Index) – used by NOAA
+Definition: 3-month running mean of sea surface temperature (SST) anomalies in the Niño 3.4 region (5°N–5°S, 170°–120°W).
+El Niño threshold:
+👉 ONI ≥ +0.5°C for at least 5 consecutive overlapping 3-month seasons
+🔹 La Niña threshold (for comparison):
+ONI ≤ –0.5°C for at least 5 consecutive overlapping 3-month seasons
+Alternative Indices (if not using ONI):
+Niño 3.4 anomalies (monthly):
+A monthly SST anomaly ≥ +0.5°C in the Niño 3.4 region is often considered El Niño-like, but typically part of a longer event.
+Multivariate ENSO Index (MEI) and Southern Oscillation Index (SOI):
+These incorporate atmospheric variables too (like pressure anomalies), but are used less for defining El Niño officially.
+Summary
+Index	Region	Threshold	Duration
+ONI	Niño 3.4	≥ +0.5°C	≥ 5 overlapping 3-month periods
+Monthly Niño 3.4 anomaly	Niño 3.4	≥ +0.5°C	Used for shorter-term or early detection
+If you're labeling ENSO events from a dataset (e.g., using a Niño3.4 variable in xarray), a typical quick check might be:
+
+el_nino_months = sst_anomalies['nino34'] >= 0.5
+Let me know if you're working with a specific dataset (e.g., ERA5 SST, CPC Niño indices), and I can help tailor the thresholding method.
+
+------------ next section
+what is the threshold used in this script def label_la_nina_sequences(df):
+    """
+    Labels La Nina sequences where the maximum sequence number is greater than 5.
+    
+    Parameters:
+    df (pandas.DataFrame): DataFrame containing La_Nina_Seq column
+    
+    Returns:
+    pandas.DataFrame: Original data with additional label column for significant sequences
+    """
+    # Create a copy of the dataframe
+    df_copy = df.copy()
+    
+    # Initialize the label column
+    df_copy['sig_elnino'] = 0
+    df_copy['sig_lanina'] = 0
+    
+    # Function to find max in a sequence
+    def get_sequence_max(start_idx, seq_in):
+        sequence = []
+        idx = start_idx
+        while idx < len(df_copy) and df_copy[seq_in].iloc[idx] != 0:
+            sequence.append(df_copy[seq_in].iloc[idx])
+            idx += 1
+        return max(sequence) if sequence else 0
+
+    # Iterate through the dataframe
+    i = 0
+    seq = 'La_Nina_Seq'
+    while i < len(df_copy):
+        if df_copy[seq].iloc[i] == 1:  # Start of a sequence
+            max_in_sequence = get_sequence_max(i, seq)
+            if max_in_sequence > 5:
+                # Label all numbers in this sequence
+                j = i
+                while j < len(df_copy) and df_copy[seq].iloc[j] != 0:
+                    df_copy.loc[df_copy.index[j], 'sig_lanina'] = 1
+                    j += 1
+            # Skip to end of current sequence
+            while i < len(df_copy) and df_copy[seq].iloc[i] != 0:
+                i += 1
+        else:
+            i += 1
+
+     # Iterate through the dataframe
+    i = 0
+    seq = 'El_Nino_Seq'
+    while i < len(df_copy):
+        if df_copy[seq].iloc[i] == 1:  # Start of a sequence
+            max_in_sequence = get_sequence_max(i, seq)
+            if max_in_sequence > 5:
+                # Label all numbers in this sequence
+                j = i
+                while j < len(df_copy) and df_copy[seq].iloc[j] != 0:
+                    df_copy.loc[df_copy.index[j], 'sig_elnino'] = 1
+                    j += 1
+            # Skip to end of current sequence
+            while i < len(df_copy) and df_copy[seq].iloc[i] != 0:
+                i += 1
+        else:
+            i += 1
+    
+    return df_copy
+
+
+def calculate_terciles(data):
+    
+    # Compute climatological terciles for each month
+    tercile_bounds = data.groupby("month")["values"].quantile([0.33, 0.67]).unstack()
+    tercile_bounds.columns = ['lower_33', 'upper_67']
+
+    # Merge tercile bounds with full dataset
+    data = data.merge(tercile_bounds, on="month", how="left")
+
+    # Assign tercile categories
+    conditions = [
+        data["values"] < data["lower_33"],  # Below-normal (-1)
+        (data["values"] >= data["lower_33"]) & (data["values"] <= data["upper_67"]),  # Near-normal (0)
+        data["values"] > data["upper_67"]   # Above-normal (1)
+    ]
+    choices = [-1, 0, 1]
+    data["tercile"] = np.select(conditions, choices)
+
+    return data
+
+def hypergeometric_significance(n, b, r, x):
+    """
+    Computes the statistical significance of above- or below-normal signals using the hypergeometric test.
+
+    Parameters:
+    - n: Total number of months with sufficient data
+    - b: Total number of months classified as above- or below-normal
+    - r: Number of El Niño or La Niña months (sample size)
+    - x: Observed number of above- or below-normal months in ENSO years
+
+    Returns:
+    - p_value: Probability of selecting x or more extreme months by random chance
+    """
+    # Compute right-tail probability (1 - CDF up to x-1)
+    p_value = stats.hypergeom.sf(x-1, n, b, r)
+    return p_value
+>>>>>>>>>>>>>>
+In the script you provided, the threshold for labeling a significant El Niño or La Niña event is based on the length of a continuous sequence, not the SST anomaly itself.
+
+✅ Threshold in label_la_nina_sequences(df):
+A sequence is considered significant if it lasts more than 5 months.
+That means:
+If 'La_Nina_Seq' or 'El_Nino_Seq' has a continuous run of values (e.g., 1, 2, 3, ..., 6), it will be labeled as a significant event.
+The specific threshold is:
+if max_in_sequence > 5:
+    # → mark this sequence as significant
+🔍 How this works:
+The columns La_Nina_Seq and El_Nino_Seq are expected to be precomputed and look like this for example:
+
+Month	La_Nina_Seq	El_Nino_Seq
+Jan	0	1
+Feb	0	2
+Mar	0	3
+Apr	0	4
+May	0	5
+Jun	0	6
+Jul	0	0
+Here, the El Niño sequence has a max_in_sequence of 6 → meets the threshold, so it's marked as significant.
+
+❗ Important:
+This function does not check SST anomalies directly — it's assumed that another preprocessing step has already classified and counted consecutive ENSO months into the *_Seq columns.
+
+Let me know if you need help with how to create the El_Nino_Seq / La_Nina_Seq columns from raw SST anomaly data or ONI values.
+
+------------ next section
+what does this do : import pandas as pd
+# Define column names manually
+column_monthly = ["Year", "Month", "NINO1+2", "ANOM_NINO1+2", "NINO3", "ANOM_NINO3",
+                "NINO4", "ANOM_NINO4", "NINO3.4", "ANOM_NINO3.4"]
+column_seasonal = ['SEAS', 'YR', 'TOTAL', 'ANOM']
+
+# Read the file
+# https://www.cpc.ncep.noaa.gov/data/indices/ersst5.nino.mth.91-20.ascii
+monthly = pd.read_csv("/Users/marie-audepradal/Documents/ersst5_nino_monthly.txt", sep='\s+', names=column_monthly, skiprows=1)[['Year', 'Month', 'NINO3.4', 'ANOM_NINO3.4']]
+seasonal = pd.read_csv("/Users/marie-audepradal/Documents/oni_seasonal.txt", sep='\s+', names=column_seasonal, skiprows=1)
+
+# Identify El Niño and La Niña periods
+seasonal['El_Nino'] = (seasonal['ANOM'] >= 1.5).astype(int)
+seasonal['La_Nina'] = (seasonal['ANOM'] <= -1.5).astype(int)
+
+# Compute running count of consecutive months where ONI exceeds 0.5 or is below -0.5
+seasonal['El_Nino_Seq'] = seasonal['El_Nino'] * seasonal['El_Nino'].groupby((seasonal['El_Nino'] != seasonal['El_Nino'].shift()).cumsum()).transform('cumsum')
+seasonal['La_Nina_Seq'] = seasonal['La_Nina'] * seasonal['La_Nina'].groupby((seasonal['La_Nina'] != seasonal['La_Nina'].shift()).cumsum()).transform('cumsum')
+
+enso_base = label_la_nina_sequences(seasonal)
+>>>>>>>>>>>>>>>>>>
+This code processes ENSO index data from NOAA/CPC and prepares it to identify significant El Niño and La Niña events, particularly those lasting more than 5 seasons.
+
+Here’s what each part does, step by step:
+
+📥 1. Import and Define Columns
+import pandas as pd
+
+# Define column names
+column_monthly = ["Year", "Month", "NINO1+2", "ANOM_NINO1+2", "NINO3", "ANOM_NINO3",
+                  "NINO4", "ANOM_NINO4", "NINO3.4", "ANOM_NINO3.4"]
+column_seasonal = ['SEAS', 'YR', 'TOTAL', 'ANOM']
+These column names match CPC's formatted text files:
+Monthly file (e.g., ersst5.nino.mth.91-20.ascii) contains monthly SST and anomalies for different Niño regions.
+Seasonal file (e.g., ONI: Oceanic Niño Index) contains 3-month rolling averages of Niño 3.4 anomalies.
+📄 2. Load Monthly and Seasonal ENSO Data
+monthly = pd.read_csv(...)[['Year', 'Month', 'NINO3.4', 'ANOM_NINO3.4']]
+seasonal = pd.read_csv(..., names=column_seasonal, skiprows=1)
+Monthly: Loads year, month, Niño3.4 values and anomalies.
+Seasonal: Loads rolling 3-month ONI data (e.g., DJF, JFM, etc.) with anomalies.
+🔍 3. Identify ENSO Events Using Thresholds
+seasonal['El_Nino'] = (seasonal['ANOM'] >= 1.5).astype(int)
+seasonal['La_Nina'] = (seasonal['ANOM'] <= -1.5).astype(int)
+Thresholds used here:
+El Niño: anomaly ≥ +1.5°C
+La Niña: anomaly ≤ –1.5°C
+⚠️ Note: This is stricter than the NOAA ONI baseline threshold of ±0.5°C.
+🔁 4. Create Consecutive ENSO Sequences
+seasonal['El_Nino_Seq'] = ...
+seasonal['La_Nina_Seq'] = ...
+This clever technique:
+
+Assigns a running count (1, 2, 3, ...) to consecutive El Niño or La Niña values.
+Zeros elsewhere.
+Example:
+
+El_Nino:      0 1 1 1 0 1 1 0
+El_Nino_Seq:  0 1 2 3 0 1 2 0
+✅ 5. Label Significant Sequences
+enso_base = label_la_nina_sequences(seasonal)
+Calls your earlier label_la_nina_sequences() function to mark sequences that:
+Last longer than 5 months
+Adds columns:
+sig_elnino = 1 for significant El Niño months
+sig_lanina = 1 for significant La Niña months
+📌 Final Output
+enso_base is a DataFrame like this:
+
+SEAS	YR	ANOM	El_Nino_Seq	La_Nina_Seq	sig_elnino	sig_lanina
+DJF	1998	2.1	1	0	1	0
+JFM	1998	1.9	2	0	1	0
+...	...	...	...	...	...	...
+🔁 Use Case
+This prepares ENSO timing data for:
+
+Matching with climate anomalies (precip, temp)
+Running significance tests (like hypergeometric_significance)
+Filtering data for “strong ENSO years”
+Let me know if you want this adapted to use NOAA's 0.5°C threshold instead of 1.5°C or if you'd like to visualize the sequences.
+
+------------ next section
+climate_var = 'precip'
+>>>>>>>>>>>>>>>
+Great! You've defined:
+
+climate_var = 'precip'
+This means you're working with precipitation data — likely monthly totals or anomalies — and you're preparing to:
+
+Analyze how precipitation behaves during El Niño or La Niña events
+Classify precipitation into terciles (below-normal, near-normal, above-normal)
+Possibly test for ENSO-related statistical significance using your earlier hypergeometric_significance function
+💡 Typical Workflow (based on your context)
+Load or filter precipitation data for relevant countries and months.
+Merge with ENSO labels (enso_base) to identify ENSO conditions.
+Calculate precipitation terciles using calculate_terciles().
+Filter ENSO periods using sig_elnino or sig_lanina.
+Count how often precipitation is above/below normal during ENSO.
+Run significance tests to determine if the relationship is non-random.
+If you'd like, I can help you with:
+
+✅ Code to merge precipitation and ENSO labels
+✅ Code to calculate ENSO-year anomaly counts per tercile
+✅ Code to apply hypergeometric_significance to test the relationship
+
+Just let me know what your precipitation dataset looks like (e.g., columns like year, month, values, country) and what your next goal is.
+
+------------ next section
+if climate_var == 'temp':
+    # Load NetCDF file
+    file_path = "/Users/marie-audepradal/Documents/temp2m.nc"
+    ds = xr.open_dataset(file_path)
+    ds_values = ds['t2m'].values
+
+    lats = ds['latitude'].values
+    lons = ds['longitude'].values
+    lons = np.where(lons > 180, lons - 360, lons) # same as SPEI and crop
+    ds = ds.assign_coords(longitude=lons)
+
+    # Create meshgrid of lat/lon pairs
+    lon_grid, lat_grid = np.meshgrid(lons, lats)
+    coordinates = np.column_stack([lon_grid.ravel(), lat_grid.ravel()])
+elif climate_var == 'precip':
+    file_path = "/Users/marie-audepradal/Documents/precip.nc"
+    ds1 = xr.open_dataset(file_path)
+
+    file_path = "/Users/marie-audepradal/Documents/precip1.nc"
+    ds2 = xr.open_dataset(file_path)
+    # Concatenate along the time dimension
+
+    ds_values = np.concatenate([ds1['tp'].values[:624], ds2['tp'].values, ds1['tp'].values[624:]], axis=0)
+
+    lats = ds1['latitude'].values
+    lons = ds1['longitude'].values
+    lons = np.where(lons > 180, lons - 360, lons) # same as SPEI and crop
+    ds = ds1.assign_coords(longitude=lons)
+
+    # Create meshgrid of lat/lon pairs
+    lon_grid, lat_grid = np.meshgrid(lons, lats)
+    coordinates = np.column_stack([lon_grid.ravel(), lat_grid.ravel()])
+elif climate_var == 'ssr': # solar radiation
+    file_path = "data/ssr.nc"
+    ds1 = xr.open_dataset(file_path)
+
+    file_path = "data/ssr1.nc"
+    ds2 = xr.open_dataset(file_path)
+    # Concatenate along the time dimension
+
+    ds_values = np.concatenate([ds1['ssr'].values[:624], ds2['ssr'].values, ds1['ssr'].values[624:]], axis=0)
+
+    lats = ds1['latitude'].values
+    lons = ds1['longitude'].values
+    lons = np.where(lons > 180, lons - 360, lons) # same as SPEI and crop
+    ds = ds1.assign_coords(longitude=lons)
+
+    # Create meshgrid of lat/lon pairs
+    lon_grid, lat_grid = np.meshgrid(lons, lats)
+    coordinates = np.column_stack([lon_grid.ravel(), lat_grid.ravel()])
+elif climate_var == 'expver':
+    file_path = "data/eva.nc"
+    ds1 = xr.open_dataset(file_path)
+
+    file_path = "data/eva1.nc"
+    ds2 = xr.open_dataset(file_path)
+    # Concatenate along the time dimension
+
+    ds_values = np.concatenate([ds1['expver'].values[:624], ds2['expver'].values, ds1['expver'].values[624:]], axis=0)
+
+    lats = ds1['latitude'].values
+    lons = ds1['longitude'].values
+    lons = np.where(lons > 180, lons - 360, lons) # same as SPEI and crop
+    ds = ds1.assign_coords(longitude=lons)
+
+    # Create meshgrid of lat/lon pairs
+    lon_grid, lat_grid = np.meshgrid(lons, lats)
+    coordinates = np.column_stack([lon_grid.ravel(), lat_grid.ravel()])
+>>>>>>>>>>>>>>>>>
+This script block loads climate variable data from NetCDF files depending on the value of climate_var. Here's a breakdown of how it works and what it does:
+
+✅ What It Does
+It dynamically loads and processes data for one of the following variables:
+
+'temp' – 2-meter temperature (t2m)
+'precip' – precipitation (tp)
+'ssr' – surface solar radiation
+'expver' – evaporation verification data (expver)
+For each case, it:
+
+Loads the NetCDF files using xarray.open_dataset.
+Concatenates datasets across the time axis (especially for long timeseries split across files).
+Fixes longitude values from 0–360 to –180–180 (to match other datasets like SPEI, crop data).
+Generates a flat coordinate array of all lat/lon grid cell centers for later use (e.g., spatial masking or interpolation).
+📦 ds_values
+The array:
+
+ds_values = ...
+Contains the raw 3D climate data for the variable:
+→ Shape is typically [time, lat, lon]
+Used for extracting country-level values or computing anomalies.
+
+🧭 coordinates
+coordinates = np.column_stack([lon_grid.ravel(), lat_grid.ravel()])
+This creates a 2D array of shape [n_points, 2] (flattened grid of lat/lon pairs). It's useful for:
+
+Interpolation
+Mapping each grid cell to country polygons
+Filtering points by region
+🔁 Special Notes
+precip, ssr, expver all load two NetCDF files, likely because one is a recent continuation of a longer historical dataset.
+It concatenates them with this:
+np.concatenate([ds1[...][:624], ds2[...], ds1[...][624:]], axis=0)
+→ This assumes ds2 fills a gap or updates the middle section of ds1.
+Longitude Adjustment:
+lons = np.where(lons > 180, lons - 360, lons)
+→ Converts 0–360 longitudes to –180–180 for easier geographic compatibility (e.g., with GeoPandas shapefiles).
+🔍 Example Use After This
+Once loaded, you would typically:
+
+Convert to xarray.DataArray or reshape for analysis
+Mask by country polygons
+Calculate monthly means, anomalies, or terciles
+Link it to ENSO signals (enso_base) for statistical testing
+Let me know if you'd like help with the next step, such as:
+
+Applying this data to a country shapefile
+Aggregating time series per country
+Calculating anomalies or terciles
+------------ next section
+world = gpd.read_file('/Users/marie-audepradal/Documents/ne_10m_admin_0_countries/ne_10m_admin_0_countries.shp')
+
+mask_dict = {}
+points_in_countries_all = {}
+points_idx_climate = {}
+
+for country_name in tqdm(countries):
+    country = world[world['SOVEREIGNT'] == country_name]
+    # Create a GeoDataFrame with the mesh grid points
+    points_gdf = gpd.GeoDataFrame(pd.DataFrame(coordinates, columns=['Longitude', 'Latitude']),
+                                geometry=gpd.points_from_xy(coordinates[:, 0], coordinates[:, 1]), crs="EPSG:4326" )
+    
+    points_in_countries =  gpd.sjoin(points_gdf, country, predicate='within')
+    points_in_countries_all[country_name] = points_in_countries[['Longitude', 'Latitude']].values
+    mask = np.zeros(lon_grid.shape, dtype=bool)
+
+    indices = points_in_countries.index.values
+    mask[np.unravel_index(indices, lon_grid.shape)] = True
+    mask_dict[country_name] = mask
+    
+    index = []
+    for lon, lat in points_in_countries[['Longitude', 'Latitude']].values:
+        # Find the index of the closest point
+        lat_idx = abs(ds['latitude'] - lat).argmin().item()
+        lon_idx = abs(ds['longitude'] - lon).argmin().item()
+        index.append([lat_idx, lon_idx])
+    points_idx_climate[country_name] = index
+>>>>>>>>>>>>>>>>
+This script performs a spatial masking and index mapping process that links your gridded climate data (ds_values) to specific countries using shapefiles. Here's a step-by-step explanation of what it does and why it matters:
+
+✅ Goal
+To identify and store:
+
+Which grid points fall within each country in your countries list
+The corresponding grid indices for extracting data from the NetCDF arrays
+🔁 Looping Over Countries
+for country_name in tqdm(countries):
+Iterates through a list of country names like ['Ethiopia', 'Mexico', ...].
+
+🌍 Load World Country Shapes
+world = gpd.read_file('.../ne_10m_admin_0_countries.shp')
+Loads Natural Earth’s country boundaries as a GeoDataFrame.
+
+📍 Convert Grid Points to GeoDataFrame
+points_gdf = gpd.GeoDataFrame(
+    pd.DataFrame(coordinates, columns=['Longitude', 'Latitude']),
+    geometry=gpd.points_from_xy(coordinates[:, 0], coordinates[:, 1]),
+    crs="EPSG:4326"
+)
+Creates a GeoDataFrame of all grid points (from lon_grid, lat_grid) as geographic points.
+
+🌐 Spatial Join: Points Inside Country
+points_in_countries = gpd.sjoin(points_gdf, country, predicate='within')
+Finds which grid points fall inside the country's boundaries. These are:
+
+Stored in points_in_countries_all[country_name]
+Used to build a country mask
+🎯 Create Boolean Mask for Grid Points in Country
+mask = np.zeros(lon_grid.shape, dtype=bool)
+indices = points_in_countries.index.values
+mask[np.unravel_index(indices, lon_grid.shape)] = True
+mask_dict[country_name] = mask
+Builds a 2D boolean mask over the full lat/lon grid, where True marks points inside the country.
+
+🧠 Why np.unravel_index?
+Because your coordinates are flattened, and you're reconstructing the 2D index.
+🔢 Map to Climate Data Indices
+index = []
+for lon, lat in points_in_countries[['Longitude', 'Latitude']].values:
+    lat_idx = abs(ds['latitude'] - lat).argmin().item()
+    lon_idx = abs(ds['longitude'] - lon).argmin().item()
+    index.append([lat_idx, lon_idx])
+points_idx_climate[country_name] = index
+This gets the (lat, lon) index positions of each point inside the country for use with ds_values[time, lat, lon].
+
+📦 Final Outputs
+You get three dictionaries per country:
+
+Dictionary	Contents
+points_in_countries_all	Grid point coordinates inside country
+mask_dict	Boolean mask (same shape as the grid)
+points_idx_climate	List of [lat_idx, lon_idx] pairs for slicing the climate array
+✅ Use Case Example
+To get precipitation data for Brazil:
+
+for t in range(ds_values.shape[0]):
+    country_data = ds_values[t]
+    values = [country_data[lat, lon] for lat, lon in points_idx_climate['Brazil']]
+Or for masking:
+
+masked = ds_values[:, mask_dict['Brazil']]  # Flattened masked time series
+Let me know if you want to:
+
+Aggregate the data (e.g., mean precipitation per country per month)
+Visualize the country masks
+Extend this to calculate anomalies or terciles
+------------ next section
+# # Save data to a pickle file
+# with open("outcome/lon_lat_idx_era5_12c.pkl", "wb") as file:
+#     pickle.dump(points_idx_climate, file)
+
+with open("/Users/marie-audepradal/Documents/outcome/lon_lat_era5_12c.pkl", "wb") as file:
+    pickle.dump(points_in_countries_all, file)
+
+# with open("outcome/lon_lat_idx_era5_12c.pkl", "rb") as file:
+#     points_idx_climate = pickle.load(file)
+>>>>>>>>>>>>>>>>>
+This snippet saves and (optionally) loads precomputed spatial point mappings using pickle. Here's a breakdown:
+
+✅ What it Does
+💾 Save dictionary of grid points inside each country
+
+with open("/Users/marie-audepradal/Documents/outcome/lon_lat_era5_12c.pkl", "wb") as file:
+    pickle.dump(points_in_countries_all, file)
+Saves the points_in_countries_all dictionary to a .pkl file.
+This dictionary contains:
+{
+  'Brazil': array([[lon1, lat1], [lon2, lat2], ...]),
+  'India': ...
+}
+It avoids recalculating the spatial join every time you run the script.
+🧠 Commented Out (Optional)
+🔃 Save grid index positions:
+
+# with open("outcome/lon_lat_idx_era5_12c.pkl", "wb") as file:
+#     pickle.dump(points_idx_climate, file)
+Would save the index pairs used to extract data directly from your climate array.
+📥 Load precomputed indices:
+
+# with open("outcome/lon_lat_idx_era5_12c.pkl", "rb") as file:
+#     points_idx_climate = pickle.load(file)
+Reloads those index mappings (very fast), skipping spatial geometry steps.
+🧩 Why This is Useful
+If you're running many analyses on the same grid and country boundaries, this:
+
+Saves hours of processing for large rasters
+Avoids repeating expensive geospatial joins
+Lets you go straight into data aggregation or anomaly analysis
+Let me know if you'd like to:
+
+Add versioning or variable-specific pickle files
+Visualize one of the saved masks or points
+Extend this to handle multiple resolutions or climate variables
+------------ next section
+season_order = ["DJF", "JFM", "FMA", "MAM", "AMJ", "MJJ", "JJA", "JAS", "ASO", "SON", "OND", "NDJ"]
+states = ['El Nino', 'La Nina', 'Normal']
+tercile_order = ['BN', 'NN', 'AN']
+states_lower = ['elnino', 'lanina', 'normal']
+
+seasons_all = enso_base['SEAS'].values
+sig_elnino = enso_base['sig_elnino'].values
+sig_lanina = enso_base['sig_lanina'].values
+enso_masks = [
+        sig_elnino == 1,  # El Nino
+        sig_lanina == 1,  # La Nina
+        (sig_elnino == 0) & (sig_lanina == 0)  # Neutral
+    ]
+>>>>>>>>>>>>>>
+This code sets up the classification logic for grouping your climate data by ENSO phase and season, preparing it for analysis or visualization.
+
+🔁 Breakdown
+🔤 Define labels and orderings
+
+season_order = ["DJF", "JFM", "FMA", "MAM", "AMJ", "MJJ", "JJA", "JAS", "ASO", "SON", "OND", "NDJ"]
+A full set of rolling 3-month seasons (used in ONI datasets).
+Helps when sorting or plotting seasonally grouped data.
+states = ['El Nino', 'La Nina', 'Normal']
+states_lower = ['elnino', 'lanina', 'normal']
+tercile_order = ['BN', 'NN', 'AN']  # Below-Normal, Near-Normal, Above-Normal
+These strings will be used to label data in plots or grouped summaries.
+📆 Extract ENSO classification
+
+seasons_all = enso_base['SEAS'].values
+sig_elnino = enso_base['sig_elnino'].values
+sig_lanina = enso_base['sig_lanina'].values
+These are arrays from your previously processed enso_base DataFrame (via label_la_nina_sequences()).
+📎 Create Boolean masks for each ENSO phase
+
+enso_masks = [
+    sig_elnino == 1,                      # Mask for significant El Niño seasons
+    sig_lanina == 1,                      # Mask for significant La Niña seasons
+    (sig_elnino == 0) & (sig_lanina == 0) # Mask for Neutral (non-ENSO) seasons
+]
+Each item in enso_masks is a NumPy boolean array the same length as your seasonal data, selecting:
+
+El Niño seasons
+La Niña seasons
+Neutral seasons
+You can use this to filter data by ENSO phase like so:
+
+precip_during_elnino = climate_data[enso_masks[0]]
+✅ Use Case
+You’re now set up to:
+
+Loop over states or enso_masks to compute statistics for each ENSO phase
+Compare seasonal tercile frequencies
+Run hypergeometric tests or plot precipitation/temperature anomalies by ENSO condition
+Let me know if you'd like help writing a loop that applies this masking to your climate data or builds a summary table (e.g., frequency of "Above-Normal precipitation during El Niño by season").
+
+------------ next section
+freq_all_country = {}
+significance_all_country = {}
+for country in countries: 
+    freq_all = []
+    significance_all = []
+    for lat, lon in tqdm(points_idx_climate[country]):
+        values = ds_values[:, lat, lon]
+        # values = signal.detrend(values)
+        
+        if np.all(np.isnan(values)):
+            freq_all.append(np.full((3, len(season_order), 3), np.nan))
+            significance_all.append(np.full((3, 2), np.nan))
+            continue
+        
+        values_mon = np.reshape(values, (75, 12)).T # 75 years 12 months
+        tercile = np.nanquantile(values_mon, [0.33, 0.67], axis=1)
+        tercile_binary = np.select(
+                            [values_mon.T <= tercile[0], 
+                            values_mon.T > tercile[1]],
+                            [-1, 1],
+                            default=0
+                        ).flatten()[:-1]
+
+        frequencies = np.zeros((3, len(season_order), 3))
+
+
+        for state_idx, state_mask in enumerate(enso_masks):
+            for seas_idx, season in enumerate(season_order):
+                season_mask = seasons_all == season
+                combined_mask = state_mask & season_mask
+                
+                if np.any(combined_mask):
+                    for tercile in [-1, 0, 1]:
+                        tercile_count = np.sum(((tercile_binary == tercile) & combined_mask))
+                        frequencies[state_idx, seas_idx, tercile + 1] = tercile_count / np.sum(combined_mask)
+
+        # Total number of months
+        total_months = len(tercile_binary)
+
+        # Create temperature tercile masks
+        above_mask = tercile_binary == 1
+        below_mask = tercile_binary == -1
+
+        # Count total above/below normal months
+        total_above = np.sum(above_mask)
+        total_below = np.sum(below_mask)
+
+        # Initialize arrays for results
+        enso_months = np.zeros(3)
+        observed_above = np.zeros(3)
+        observed_below = np.zeros(3)
+        p_values = np.zeros((3, 2))  # [above, below] for each ENSO state
+
+        # Calculate counts for each ENSO state
+        for i, mask in enumerate(enso_masks):
+            enso_months[i] = np.sum(mask)
+            observed_above[i] = np.sum(mask & above_mask)
+            observed_below[i] = np.sum(mask & below_mask)
+            
+            # Calculate p-values using hypergeometric distribution
+            # For above normal
+            p_values[i, 0] = hypergeom.sf(
+                observed_above[i] - 1,           # k-1 (observed successes minus 1)
+                total_months,                    # N (total population)
+                total_above,                     # K (total successes in population)
+                enso_months[i]                   # n (sample size)
+            )
+            
+            # For below normal
+            p_values[i, 1] = hypergeom.sf(
+                observed_below[i] - 1,           # k-1 (observed successes minus 1)
+                total_months,                    # N (total population)
+                total_below,                     # K (total successes in population)
+                enso_months[i]                   # n (sample size)
+            )
+
+        freq_all.append(frequencies)
+        significance_all.append(p_values)
+    freq_all_country[country] = freq_all
+    significance_all_country[country] = significance_all
+>>>>>>>>>>>>>>>>>>>.
+This script performs a grid-level ENSO impact analysis for each country using your climate variable (like precipitation or temperature). It calculates:
+
+Frequencies of tercile outcomes (below-, near-, above-normal) during each ENSO phase and season.
+Statistical significance of these outcomes using the hypergeometric test.
+Let’s break it down:
+
+🔁 Outer Loop: Iterate Over Countries
+
+for country in countries:
+For each country (e.g., Brazil, India…), this will analyze each grid cell that falls within that country.
+
+🧭 Inner Loop: Iterate Over Grid Points in Country
+
+for lat, lon in points_idx_climate[country]:
+Goes over all grid cell indices (lat, lon) for the country.
+
+✅ Extract Time Series
+
+values = ds_values[:, lat, lon]
+Grabs the full time series for this grid cell (typically [time,] shape = 900 months for 75 years of monthly data).
+
+❌ Skip Missing Grid Cells
+
+if np.all(np.isnan(values)):
+    ...
+    continue
+Skips cells that are completely empty (e.g., over ocean or poorly observed terrain).
+
+📆 Reshape to [12 months, 75 years]
+
+values_mon = np.reshape(values, (75, 12)).T
+So you can calculate monthly climatological terciles.
+
+📊 Assign Terciles
+
+tercile = np.nanquantile(values_mon, [0.33, 0.67], axis=1)
+tercile_binary = np.select([...], [-1, 1], default=0).flatten()[:-1]
+You calculate terciles for each month, then classify each month's value as:
+
+-1: below normal
+0: near normal
+1: above normal
+And flatten the array back to 1D time series.
+
+📈 Tercile Frequencies by Season & ENSO
+
+frequencies[state_idx, seas_idx, tercile + 1] = ...
+Fills a 3D array of shape [3 ENSO states, 12 seasons, 3 terciles] with relative frequencies (fractions) of occurrence.
+
+📐 Significance Testing (Hypergeometric)
+
+This block:
+
+for i, mask in enumerate(enso_masks):
+    ...
+Performs a hypergeometric test for each ENSO state to ask:
+
+Is the number of above-normal (or below-normal) values during El Niño/La Niña greater than you'd expect by chance?
+It uses:
+
+N = total_months (population size)
+K = total_above or total_below (number of "successes" in the population)
+n = enso_months[i] (sample size: months during ENSO phase)
+x = observed_above[i] or observed_below[i] (observed "successes")
+✅ Output
+
+freq_all_country[country]:
+A list (1 per grid cell) of arrays shaped [3, 12, 3] →
+[ENSO state, season, tercile classification]
+
+significance_all_country[country]:
+A list (1 per grid cell) of arrays shaped [3, 2] →
+[ENSO state, above/below significance p-values]
+
+🔧 Tip
+
+You might consider wrapping this into a function later to reuse for other variables (e.g., temperature) or write output to disk in a compressed format (like zarr or pickle).
+
+Let me know if you'd like:
+
+Help plotting the tercile frequencies or significance maps
+Averages over country
+Thresholding based on p-values (e.g., significance at α = 0.05)
+------------ next section
+for this analysis, is the script using the full dataset or is the condition on the strenght of el nino applied 
+>>>>>>>>>>>>>>>>>>>>>
+Excellent question — and important for interpreting your results correctly.
+
+✅ Answer: Yes, the script is using only strong ENSO events.
+🔍 Why?
+In the ENSO setup you showed earlier, you applied a threshold to define "significant" events based on duration:
+
+enso_base = label_la_nina_sequences(seasonal)
+That function marks:
+
+sig_elnino = 1 for El Niño sequences longer than 5 months
+sig_lanina = 1 for La Niña sequences longer than 5 months
+Then, you define ENSO masks like this:
+
+enso_masks = [
+    sig_elnino == 1,                      # El Niño
+    sig_lanina == 1,                      # La Niña
+    (sig_elnino == 0) & (sig_lanina == 0) # Neutral
+]
+These masks are then used to:
+
+Filter the time series for specific ENSO states
+Count tercile categories only during those filtered periods
+Compute hypergeometric significance for only the significant El Niño or La Niña months
+🔁 So in short:
+Yes, your loop is conditioned on the strength of the ENSO event, as defined by:
+ONI ≥ ±1.5°C
+AND lasting >5 overlapping 3-month seasons
+Only those months are included in your analysis of ENSO-related climate impacts.
+✅ Recommendation
+If you ever want to compare with "all ENSO months" (even weak/moderate), you'd need to:
+
+Adjust your ENSO classification thresholds (e.g., use ±0.5°C)
+Skip or relax the sequence-length filter in label_la_nina_sequences()
+Let me know if you want to generate a version of this using all ENSO events, not just the strong ones.
+
+You said:
+show me in the code where the condition is applied
+ChatGPT said:
+Absolutely — let’s pinpoint exactly where the condition on ENSO strength is applied in your code.
+
+🔎 The key filtering logic is in this function:
+def label_la_nina_sequences(df):
+This is where the duration condition is applied:
+
+if max_in_sequence > 5:
+That line checks if an ENSO sequence (El Niño or La Niña) lasts longer than 5 months. If it does, it marks the corresponding months as significant:
+
+df_copy.loc[df_copy.index[j], 'sig_elnino'] = 1  # or sig_lanina
+✅ Then later in your main script:
+You define the ENSO masks using the sig_elnino and sig_lanina flags:
+
+sig_elnino = enso_base['sig_elnino'].values
+sig_lanina = enso_base['sig_lanina'].values
+
+enso_masks = [
+    sig_elnino == 1,                      # El Niño
+    sig_lanina == 1,                      # La Niña
+    (sig_elnino == 0) & (sig_lanina == 0) # Neutral
+]
+These masks are then applied to your data analysis loop — specifically in this part of your ENSO loop:
+
+for state_idx, state_mask in enumerate(enso_masks):
+    ...
+    combined_mask = state_mask & season_mask
+So only months where sig_elnino == 1 or sig_lanina == 1 are included in:
+
+Tercile frequency calculations
+Hypergeometric significance tests
+✅ Summary
+Code Line	What It Does
+if max_in_sequence > 5:	Filters ENSO events to include only long sequences
+df_copy.loc[...] = 1	Labels those long sequences as significant
+sig_elnino == 1	Filters analysis to only strong El Niño months
+combined_mask = state_mask & season_mask	Applies the ENSO filter during analysis
+Would you like to:
+
+Modify this to use a lower threshold (e.g., ≥ 0.5°C, any length)?
+Compare results with and without the sequence-length condition?
+Happy to help with either.
+
+
+
